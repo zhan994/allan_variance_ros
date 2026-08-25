@@ -16,3 +16,5 @@ log/
 .catkin_tools/
 .vscode-server/
 .env
+
+.vscode
