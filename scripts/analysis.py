@@ -11,7 +11,81 @@ import csv
 
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib.ticker import LogFormatterMathtext, LogLocator, NullFormatter
 from scipy.optimize import curve_fit
+
+
+# Publication-oriented sans-serif defaults to match a sans-serif body font.
+plt.rcParams.update({
+	"font.family": "sans-serif",
+	"font.sans-serif": ["Arimo", "Arial", "Helvetica", "DejaVu Sans"],
+	"mathtext.fontset": "dejavusans",
+	"font.size": 11,
+	"axes.labelsize": 10.5,
+	"axes.titlesize": 10.5,
+	"axes.titleweight": "bold",
+	"axes.linewidth": 0.8,
+	"legend.fontsize": 9.5,
+	"xtick.labelsize": 10.5,
+	"ytick.labelsize": 10.5,
+	"lines.linewidth": 1.4,
+	"savefig.dpi": 600,
+	"savefig.bbox": "tight",
+	"pdf.fonttype": 42,
+	"ps.fonttype": 42,
+})
+
+
+def style_log_axes(ax):
+	"""Apply compact, publication-quality formatting to a log-log plot."""
+	major_locator = LogLocator(base=10)
+	minor_locator = LogLocator(base=10, subs=np.arange(2, 10) * 0.1)
+	formatter = LogFormatterMathtext(base=10)
+
+	ax.xaxis.set_major_locator(major_locator)
+	ax.xaxis.set_minor_locator(minor_locator)
+	ax.xaxis.set_major_formatter(formatter)
+	ax.xaxis.set_minor_formatter(NullFormatter())
+	ax.yaxis.set_major_locator(LogLocator(base=10))
+	ax.yaxis.set_minor_locator(LogLocator(base=10, subs=np.arange(2, 10) * 0.1))
+	ax.yaxis.set_major_formatter(LogFormatterMathtext(base=10))
+	ax.yaxis.set_minor_formatter(NullFormatter())
+	ax.tick_params(which="both", direction="in", top=True, right=True)
+	ax.tick_params(which="major", length=5, width=0.8)
+	ax.tick_params(which="minor", length=3, width=0.6)
+	ax.grid(which="major", color="0.82", linewidth=0.6, linestyle="--")
+	ax.grid(which="minor", visible=False)
+
+
+def save_publication_figure(fig, basename):
+	"""Save a high-resolution raster image and an editable vector image."""
+	fig.savefig(basename + ".png")
+	fig.savefig(basename + ".pdf")
+
+
+def plot_allan_panel(ax, period, data, white_fits, random_walk_fits,
+					 white_intercepts, random_walk_intercepts, title, ylabel):
+	"""Draw one Allan-deviation panel for a combined vector figure."""
+	colors = ("#0072B2", "#D55E00", "#009E73")
+	linestyles = ("-", "--", "-.")
+	axis_labels = (r"$x$", r"$y$", r"$z$")
+
+	for axis in range(3):
+		ax.loglog(period, data[:, axis], color=colors[axis],
+				  linestyle=linestyles[axis], label=axis_labels[axis])
+		ax.loglog(period, white_fits[axis](period), color="0.45", linestyle=":",
+				  label="white-noise" if axis == 2 else None)
+		ax.loglog(period, random_walk_fits[axis](period), color="#CC79A7",
+				  linestyle=":", label="random-walk" if axis == 2 else None)
+		ax.loglog(1.0, white_intercepts[axis], "o", color=colors[axis], markersize=7)
+		ax.loglog(3.0, random_walk_intercepts[axis], "*", color=colors[axis], markersize=9)
+
+	ax.set_title(title)
+	ax.set_ylabel(ylabel)
+	ax.set_xlabel(r"Averaging time, $\tau$ ($\mathrm{s}$)")
+	ax.legend(loc="upper right", frameon=True, facecolor="white", framealpha=0.7,
+			  edgecolor="0.75", ncol=2, columnspacing=1.0, handlelength=1.8)
+	style_log_axes(ax)
 
 
 def line_func(x, m, b):
@@ -133,6 +207,12 @@ accel_rr_intercept_x, xfit_rr = get_intercept(period, acceleration[:,0], 0.5, 3.
 accel_rr_intercept_y, yfit_rr = get_intercept(period, acceleration[:,1], 0.5, 3.0)
 accel_rr_intercept_z, zfit_rr = get_intercept(period, acceleration[:,2], 0.5, 3.0)
 
+# Keep the accelerometer fits because the generic fit variables are reused below.
+accel_white_fits = (xfit_wn, yfit_wn, zfit_wn)
+accel_random_walk_fits = (xfit_rr, yfit_rr, zfit_rr)
+accel_white_intercepts = (accel_wn_intercept_x, accel_wn_intercept_y, accel_wn_intercept_z)
+accel_random_walk_intercepts = (accel_rr_intercept_x, accel_rr_intercept_y, accel_rr_intercept_z)
+
 accel_min_x = np.amin(acceleration[:,0])
 accel_min_y = np.amin(acceleration[:,1])
 accel_min_z = np.amin(acceleration[:,2])
@@ -170,51 +250,56 @@ average_acc_bias_instability = (accel_min_x + accel_min_y + accel_min_z) / 3
 average_acc_random_walk = (accel_rr_intercept_x + accel_rr_intercept_y + accel_rr_intercept_z) / 3
 
 # Plot accelerometer data
-dpi = 90
-figsize = (16, 9)
+dpi = 150
+# Use a wider aspect ratio so the log-scale curves remain easy to distinguish
+# when the figure is scaled to a single column in a two-column paper.
+figsize = (5.0, 3.2)
 fig1 = plt.figure(num="Acceleration", dpi=dpi, figsize=figsize)
 
-plt.loglog(period, acceleration[:,0], "r--" , label='X')
-plt.loglog(period, acceleration[:,1], "g--" , label='Y')
-plt.loglog(period, acceleration[:,2], "b--" , label='Z')
+plt.loglog(period, acceleration[:,0], color="#0072B2", linestyle="-", label=r"$x$")
+plt.loglog(period, acceleration[:,1], color="#D55E00", linestyle="--", label=r"$y$")
+plt.loglog(period, acceleration[:,2], color="#009E73", linestyle="-.", label=r"$z$")
 
-plt.loglog(period, xfit_wn(period), "m-")
-plt.loglog(period, yfit_wn(period), "m-")
-plt.loglog(period, zfit_wn(period), "m-", label="White noise fit line")
+plt.loglog(period, xfit_wn(period), color="0.45", linestyle=":")
+plt.loglog(period, yfit_wn(period), color="0.45", linestyle=":")
+plt.loglog(period, zfit_wn(period), color="0.45", linestyle=":", label="white-noise")
 
-plt.loglog(period, xfit_rr(period), "y-",)
-plt.loglog(period, yfit_rr(period), "y-",)
-plt.loglog(period, zfit_rr(period), "y-", label="Random Rate fit line")
+plt.loglog(period, xfit_rr(period), color="#CC79A7", linestyle=":")
+plt.loglog(period, yfit_rr(period), color="#CC79A7", linestyle=":")
+plt.loglog(period, zfit_rr(period), color="#CC79A7", linestyle=":", label="random-walk")
 
-plt.loglog(1.0, accel_wn_intercept_x, "ro", markersize=20)
-plt.loglog(1.0, accel_wn_intercept_y, "go", markersize=20)
-plt.loglog(1.0, accel_wn_intercept_z, "bo", markersize=20)
+plt.loglog(1.0, accel_wn_intercept_x, "o", color="#0072B2", markersize=7)
+plt.loglog(1.0, accel_wn_intercept_y, "o", color="#D55E00", markersize=7)
+plt.loglog(1.0, accel_wn_intercept_z, "o", color="#009E73", markersize=7)
 
-plt.loglog(3.0, accel_rr_intercept_x, "r*", markersize=20)
-plt.loglog(3.0, accel_rr_intercept_y, "g*", markersize=20)
-plt.loglog(3.0, accel_rr_intercept_z, "b*", markersize=20)
+plt.loglog(3.0, accel_rr_intercept_x, "*", color="#0072B2", markersize=9)
+plt.loglog(3.0, accel_rr_intercept_y, "*", color="#D55E00", markersize=9)
+plt.loglog(3.0, accel_rr_intercept_z, "*", color="#009E73", markersize=9)
 
-plt.loglog(period[accel_min_x_index], accel_min_x, "r^", markersize=20)
-plt.loglog(period[accel_min_y_index], accel_min_y, "g^", markersize=20)
-plt.loglog(period[accel_min_z_index], accel_min_z, "b^", markersize=20)
+# Bias-instability markers (disabled for publication figures).
+# plt.loglog(period[accel_min_x_index], accel_min_x, "^", color="#0072B2", markersize=7)
+# plt.loglog(period[accel_min_y_index], accel_min_y, "^", color="#D55E00", markersize=7)
+# plt.loglog(period[accel_min_z_index], accel_min_z, "^", color="#009E73", markersize=7)
 
-fitted_model = generate_prediction(period, q_white=average_acc_white_noise,
-									q_bias_instability=average_acc_bias_instability, q_walk=average_acc_random_walk)
-plt.loglog(period, fitted_model, "-k", label='fitted model')
+# Combined fitted model (disabled for publication figures).
+# fitted_model = generate_prediction(period, q_white=average_acc_white_noise,
+# 									 q_bias_instability=average_acc_bias_instability,
+# 									 q_walk=average_acc_random_walk)
+# plt.loglog(period, fitted_model, "-k", linewidth=1.6, label="Model fit")
 
-plt.title("Accelerometer", fontsize=30)
-plt.ylabel("Allan Deviation m/s^2", fontsize=30)
-plt.legend(fontsize=25)
-plt.grid(True)
-plt.xlabel("Period (s)", fontsize=30)
+plt.title("Accelerometer")
+plt.ylabel(r"Allan deviation, $\sigma_A(\tau)$ ($\mathrm{m\,s^{-2}}$)")
+plt.xlabel(r"Averaging time, $\tau$ ($\mathrm{s}$)")
+plt.legend(loc="upper right", frameon=True, facecolor="white", framealpha=0.7,
+		   edgecolor="0.75", ncol=2, columnspacing=1.0, handlelength=1.8)
+style_log_axes(plt.gca())
 plt.tight_layout()
 
 plt.draw()
 plt.pause(1)
 w = plt.waitforbuttonpress(timeout=5)
-plt.close()
-
-fig1.savefig('acceleration.png', dpi=600, bbox_inches = "tight")
+save_publication_figure(fig1, "acceleration")
+plt.close(fig1)
 
 # Calculate intercepts and minimums for gyroscope
 gyro_wn_intercept_x, xfit_wn = get_intercept(period[0:white_noise_break_point], rotation_rate[0:white_noise_break_point,0], -0.5, 1.0)
@@ -224,6 +309,11 @@ gyro_wn_intercept_z, zfit_wn = get_intercept(period[0:white_noise_break_point], 
 gyro_rr_intercept_x, xfit_rr = get_intercept(period, rotation_rate[:,0], 0.5, 3.0)
 gyro_rr_intercept_y, yfit_rr = get_intercept(period, rotation_rate[:,1], 0.5, 3.0)
 gyro_rr_intercept_z, zfit_rr = get_intercept(period, rotation_rate[:,2], 0.5, 3.0)
+
+gyro_white_fits = (xfit_wn, yfit_wn, zfit_wn)
+gyro_random_walk_fits = (xfit_rr, yfit_rr, zfit_rr)
+gyro_white_intercepts = (gyro_wn_intercept_x, gyro_wn_intercept_y, gyro_wn_intercept_z)
+gyro_random_walk_intercepts = (gyro_rr_intercept_x, gyro_rr_intercept_y, gyro_rr_intercept_z)
 
 gyro_min_x = np.amin(rotation_rate[:,0])
 gyro_min_y = np.amin(rotation_rate[:,1])
@@ -264,47 +354,80 @@ average_gyro_random_walk = (gyro_rr_intercept_x + gyro_rr_intercept_y + gyro_rr_
 # Plot gyroscope data
 fig2 = plt.figure(num="Gyro", dpi=dpi, figsize=figsize)
 
-plt.loglog(period, rotation_rate[:,0], "r-" , label='X')
-plt.loglog(period, rotation_rate[:,1], "g-" , label='Y')
-plt.loglog(period, rotation_rate[:,2], "b-" , label='Z')
+plt.loglog(period, rotation_rate[:,0], color="#0072B2", linestyle="-", label=r"$x$")
+plt.loglog(period, rotation_rate[:,1], color="#D55E00", linestyle="--", label=r"$y$")
+plt.loglog(period, rotation_rate[:,2], color="#009E73", linestyle="-.", label=r"$z$")
 
-plt.loglog(period, xfit_wn(period), "m-")
-plt.loglog(period, yfit_wn(period), "m-")
-plt.loglog(period, zfit_wn(period), "m-", label="White noise fit line")
+plt.loglog(period, xfit_wn(period), color="0.45", linestyle=":")
+plt.loglog(period, yfit_wn(period), color="0.45", linestyle=":")
+plt.loglog(period, zfit_wn(period), color="0.45", linestyle=":", label="white-noise")
 
-plt.loglog(period, xfit_rr(period), "y-")
-plt.loglog(period, yfit_rr(period), "y-")
-plt.loglog(period, zfit_rr(period), "y-", label="Random rate fit line")
+plt.loglog(period, xfit_rr(period), color="#CC79A7", linestyle=":")
+plt.loglog(period, yfit_rr(period), color="#CC79A7", linestyle=":")
+plt.loglog(period, zfit_rr(period), color="#CC79A7", linestyle=":", label="random-walk")
 
-plt.loglog(1.0, gyro_wn_intercept_x, "ro", markersize=20)
-plt.loglog(1.0, gyro_wn_intercept_y, "go", markersize=20)
-plt.loglog(1.0, gyro_wn_intercept_z, "bo", markersize=20)
+plt.loglog(1.0, gyro_wn_intercept_x, "o", color="#0072B2", markersize=7)
+plt.loglog(1.0, gyro_wn_intercept_y, "o", color="#D55E00", markersize=7)
+plt.loglog(1.0, gyro_wn_intercept_z, "o", color="#009E73", markersize=7)
 
-plt.loglog(3.0, gyro_rr_intercept_x, "r*", markersize=20)
-plt.loglog(3.0, gyro_rr_intercept_y, "g*", markersize=20)
-plt.loglog(3.0, gyro_rr_intercept_z, "b*", markersize=20)
+plt.loglog(3.0, gyro_rr_intercept_x, "*", color="#0072B2", markersize=9)
+plt.loglog(3.0, gyro_rr_intercept_y, "*", color="#D55E00", markersize=9)
+plt.loglog(3.0, gyro_rr_intercept_z, "*", color="#009E73", markersize=9)
 
-plt.loglog(period[gyro_min_x_index], gyro_min_x, "r^", markersize=20)
-plt.loglog(period[gyro_min_y_index], gyro_min_y, "g^", markersize=20)
-plt.loglog(period[gyro_min_z_index], gyro_min_z, "b^", markersize=20)
+# Bias-instability markers (disabled for publication figures).
+# plt.loglog(period[gyro_min_x_index], gyro_min_x, "^", color="#0072B2", markersize=7)
+# plt.loglog(period[gyro_min_y_index], gyro_min_y, "^", color="#D55E00", markersize=7)
+# plt.loglog(period[gyro_min_z_index], gyro_min_z, "^", color="#009E73", markersize=7)
 
-fitted_model = generate_prediction(period, q_white=average_gyro_white_noise,
-									q_bias_instability=average_gyro_bias_instability, q_walk=average_gyro_random_walk)
-plt.loglog(period, fitted_model, "-k", label='fitted model')
+# Combined fitted model (disabled for publication figures).
+# fitted_model = generate_prediction(period, q_white=average_gyro_white_noise,
+# 									 q_bias_instability=average_gyro_bias_instability,
+# 									 q_walk=average_gyro_random_walk)
+# plt.loglog(period, fitted_model, "-k", linewidth=1.6, label="Model fit")
 
-plt.title("Gyroscope", fontsize=30)
-plt.ylabel("Allan Deviation deg/s", fontsize=30)
-plt.legend(fontsize=25)
-plt.grid(True)
-plt.xlabel("Period (s)", fontsize=30)
+plt.title("Gyroscope")
+plt.ylabel(r"Allan deviation, $\sigma_A(\tau)$ ($^\circ\!\mathrm{s^{-1}}$)")
+plt.xlabel(r"Averaging time, $\tau$ ($\mathrm{s}$)")
+plt.legend(loc="upper right", frameon=True, facecolor="white", framealpha=0.7,
+		   edgecolor="0.75", ncol=2, columnspacing=1.0, handlelength=1.8)
+style_log_axes(plt.gca())
 plt.tight_layout()
 
 plt.draw()
 plt.pause(1)
 w = plt.waitforbuttonpress(timeout=5)
-plt.close()
+save_publication_figure(fig2, "gyro")
+plt.close(fig2)
 
-fig2.savefig('gyro.png', dpi=600, bbox_inches = "tight")
+# Save vector-quality combined figures for alternative paper layouts.
+accel_ylabel = r"Allan deviation, $\sigma_A(\tau)$ ($\mathrm{m\,s^{-2}}$)"
+gyro_ylabel = r"Allan deviation, $\sigma_A(\tau)$ ($^\circ\!\mathrm{s^{-1}}$)"
+
+fig_vertical, axes_vertical = plt.subplots(2, 1, dpi=dpi, figsize=(5.0, 6.4))
+plot_allan_panel(axes_vertical[0], period, acceleration,
+				 accel_white_fits, accel_random_walk_fits,
+				 accel_white_intercepts, accel_random_walk_intercepts,
+				 "Accelerometer", accel_ylabel)
+plot_allan_panel(axes_vertical[1], period, rotation_rate,
+				 gyro_white_fits, gyro_random_walk_fits,
+				 gyro_white_intercepts, gyro_random_walk_intercepts,
+				 "Gyroscope", gyro_ylabel)
+fig_vertical.tight_layout()
+fig_vertical.savefig("allan_acc_gyro_vertical.pdf")
+plt.close(fig_vertical)
+
+fig_horizontal, axes_horizontal = plt.subplots(1, 2, dpi=dpi, figsize=(10.0, 3.2))
+plot_allan_panel(axes_horizontal[0], period, acceleration,
+				 accel_white_fits, accel_random_walk_fits,
+				 accel_white_intercepts, accel_random_walk_intercepts,
+				 "Accelerometer", accel_ylabel)
+plot_allan_panel(axes_horizontal[1], period, rotation_rate,
+				 gyro_white_fits, gyro_random_walk_fits,
+				 gyro_white_intercepts, gyro_random_walk_intercepts,
+				 "Gyroscope", gyro_ylabel)
+fig_horizontal.tight_layout(w_pad=2.0)
+fig_horizontal.savefig("allan_acc_gyro_horizontal.pdf")
+plt.close(fig_horizontal)
 
 # Write rostopic and update rate to yaml file
 if args.config:
