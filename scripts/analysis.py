@@ -82,7 +82,7 @@ def plot_allan_panel(ax, period, data, white_fits, random_walk_fits,
 
 	ax.set_title(title)
 	ax.set_ylabel(ylabel)
-	ax.set_xlabel(r"Averaging time, $\tau$ ($\mathrm{s}$)")
+	ax.set_xlabel(r"Period, $\tau$ ($\mathrm{s}$)")
 	ax.legend(loc="upper right", frameon=True, facecolor="white", framealpha=0.7,
 			  edgecolor="0.75", ncol=2, columnspacing=1.0, handlelength=1.8)
 	style_log_axes(ax)
@@ -289,7 +289,7 @@ plt.loglog(3.0, accel_rr_intercept_z, "*", color="#009E73", markersize=9)
 
 plt.title("Accelerometer")
 plt.ylabel(r"Allan deviation, $\sigma_A(\tau)$ ($\mathrm{m\,s^{-2}}$)")
-plt.xlabel(r"Averaging time, $\tau$ ($\mathrm{s}$)")
+plt.xlabel(r"Period, $\tau$ ($\mathrm{s}$)")
 plt.legend(loc="upper right", frameon=True, facecolor="white", framealpha=0.7,
 		   edgecolor="0.75", ncol=2, columnspacing=1.0, handlelength=1.8)
 style_log_axes(plt.gca())
@@ -387,7 +387,7 @@ plt.loglog(3.0, gyro_rr_intercept_z, "*", color="#009E73", markersize=9)
 
 plt.title("Gyroscope")
 plt.ylabel(r"Allan deviation, $\sigma_A(\tau)$ ($^\circ\!\mathrm{s^{-1}}$)")
-plt.xlabel(r"Averaging time, $\tau$ ($\mathrm{s}$)")
+plt.xlabel(r"Period, $\tau$ ($\mathrm{s}$)")
 plt.legend(loc="upper right", frameon=True, facecolor="white", framealpha=0.7,
 		   edgecolor="0.75", ncol=2, columnspacing=1.0, handlelength=1.8)
 style_log_axes(plt.gca())
