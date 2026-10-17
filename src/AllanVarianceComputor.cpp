@@ -7,6 +7,9 @@
 
 #include "allan_variance_ros/AllanVarianceComputor.hpp"
 
+#include <algorithm>
+#include <cmath>
+
 namespace allan_variance_ros {
 
 AllanVarianceComputor::AllanVarianceComputor(ros::NodeHandle& nh, std::string config_file, std::string output_path)
@@ -118,6 +121,33 @@ void AllanVarianceComputor::run(std::string bag_path) {
 
   // Compute Allan Variance here
   if(!imuBuffer_.empty()) {
+    // Stationary IMU data includes gravity. Detect the unit once for the
+    // entire sequence using the median acceleration magnitude.
+    std::vector<double> acceleration_norms;
+    acceleration_norms.reserve(imuBuffer_.size());
+    for (const auto& measurement : imuBuffer_) {
+      acceleration_norms.push_back(measurement.I_a_WI.norm());
+    }
+    const auto middle = acceleration_norms.begin() + acceleration_norms.size() / 2;
+    std::nth_element(acceleration_norms.begin(), middle, acceleration_norms.end());
+    double median_norm = *middle;
+    if (acceleration_norms.size() % 2 == 0) {
+      median_norm = (median_norm + *std::max_element(acceleration_norms.begin(), middle)) / 2.0;
+    }
+
+    constexpr double gravity = 9.80665;
+    // Treat magnitudes within 0.5 of 1 g as g; otherwise retain m/s^2.
+    if (std::abs(median_norm - 1.0) < 0.5) {
+      for (auto& measurement : imuBuffer_) {
+        measurement.I_a_WI *= gravity;
+      }
+      ROS_INFO_STREAM("Acceleration magnitude median: " << median_norm
+                      << "; input unit: g. Converted to m/s^2 (x " << gravity << ").");
+    } else {
+      ROS_INFO_STREAM("Acceleration magnitude median: " << median_norm
+                      << "; retaining input as m/s^2.");
+    }
+
     allanVariance();
   } else {
     ROS_ERROR("No IMU messages to process, is your topic right?");

@@ -35,6 +35,8 @@ From the catkin workspace directory (e.g. ~/catkin_ws), run:
 
   ``rosrun allan_variance_ros allan_variance [path_to_folder_containing_bag] [path_to_config_file]``
 
+  For stationary IMU data containing gravity, acceleration units are detected once from the median acceleration magnitude. A median between 0.5 and 1.5 (exclusive) is treated as g, and all three acceleration axes are multiplied by 9.80665 to convert to m/s². Otherwise, acceleration is kept unchanged as m/s². The decision is printed in the ROS log; gyroscope data is unaffected.
+
 5. This will compute the Allan Deviation for the IMU and generate a CSV. The next step is to visualize the plots and get parameters. For this run:
 
   ``rosrun allan_variance_ros analysis.py --data allan_variance.csv``
